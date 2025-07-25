@@ -1,3 +1,4 @@
+//Poc & testing purposes only. Use at your own risk.
 #define _GNU_SOURCE
 #include <liburing.h>
 #include <fcntl.h>
