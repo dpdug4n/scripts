@@ -27,7 +27,7 @@ int unlink_with_uring(struct io_uring *ring, const char *path) {
     struct io_uring_sqe *sqe = io_uring_get_sqe(ring);
     if (!sqe) return -1;
 
-    io_uring_prep_unlink(sqe, path);
+    io_uring_prep_unlink(sqe, path, 0);  // <-- add the third arg here!
     io_uring_submit(ring);
 
     struct io_uring_cqe *cqe;
@@ -36,6 +36,7 @@ int unlink_with_uring(struct io_uring *ring, const char *path) {
     io_uring_cqe_seen(ring, cqe);
     return res;
 }
+
 
 int overwrite_file(struct io_uring *ring, const char *filepath, int passes) {
     int fd = open(filepath, O_WRONLY | O_NOATIME);
