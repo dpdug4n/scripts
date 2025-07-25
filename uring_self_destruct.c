@@ -1,4 +1,3 @@
-// PoC purposes only. Use at your own risk. 
 #define _GNU_SOURCE
 #include <liburing.h>
 #include <fcntl.h>
@@ -8,7 +7,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <sys/syscall.h>
 #include <linux/limits.h>
 #include <time.h>
 #include <errno.h>
@@ -17,7 +15,6 @@
 #define BUFFER_SIZE 4096
 #define PASSES 3
 
-// Generate random string for filename scrambling
 void random_string(char *buf, size_t len) {
     const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     for (size_t i = 0; i < len - 1; i++) {
@@ -26,7 +23,6 @@ void random_string(char *buf, size_t len) {
     buf[len - 1] = '\0';
 }
 
-// io_uring unlink wrapper
 int unlink_with_uring(struct io_uring *ring, const char *path) {
     struct io_uring_sqe *sqe = io_uring_get_sqe(ring);
     if (!sqe) return -1;
@@ -41,7 +37,6 @@ int unlink_with_uring(struct io_uring *ring, const char *path) {
     return res;
 }
 
-// io_uring write overwrite
 int overwrite_file(struct io_uring *ring, const char *filepath, int passes) {
     int fd = open(filepath, O_WRONLY | O_NOATIME);
     if (fd < 0) return -1;
@@ -59,7 +54,7 @@ int overwrite_file(struct io_uring *ring, const char *filepath, int passes) {
     for (int p = 0; p < passes; p++) {
         off_t offset = 0;
         while (offset < size) {
-            size_t chunk = (size - offset) > BUFFER_SIZE ? BUFFER_SIZE : (size - offset);
+            size_t chunk = (size - offset > BUFFER_SIZE) ? BUFFER_SIZE : size - offset;
             for (size_t i = 0; i < chunk; i++) data[i] = rand() % 256;
 
             struct io_uring_sqe *sqe = io_uring_get_sqe(ring);
@@ -84,7 +79,6 @@ int overwrite_file(struct io_uring *ring, const char *filepath, int passes) {
     return 0;
 }
 
-// Rename file multiple times to scramble metadata
 void rename_scramble(const char *path, int times) {
     char newname[PATH_MAX];
     char dirname[PATH_MAX];
@@ -103,10 +97,9 @@ void rename_scramble(const char *path, int times) {
         rename(current, newname);
         strcpy(current, newname);
     }
-    rename(current, path); // Rename back to original
+    rename(current, path); // rename back to original
 }
 
-// Recursively walk and securely delete
 void wipe_recursive(struct io_uring *ring, const char *path) {
     struct stat st;
     if (lstat(path, &st) < 0) return;
@@ -131,11 +124,10 @@ void wipe_recursive(struct io_uring *ring, const char *path) {
         rename_scramble(path, 3);
         unlink_with_uring(ring, path);
     } else {
-        unlink(path); // skip special files
+        unlink(path); // fallback for symlinks/devices
     }
 }
 
-// Fill free disk space
 void wipe_free_space(const char *dir, struct io_uring *ring) {
     char filler[PATH_MAX];
     snprintf(filler, sizeof(filler), "%s/.tmp_fill", dir);
@@ -144,7 +136,6 @@ void wipe_free_space(const char *dir, struct io_uring *ring) {
 
     char *data = malloc(BUFFER_SIZE);
     if (!data) return;
-
     for (int i = 0; i < BUFFER_SIZE; i++) data[i] = rand() % 256;
 
     while (1) {
@@ -172,6 +163,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    printf("[*] Starting wipe: %s\n", argv[1]);
     wipe_recursive(&ring, argv[1]);
     wipe_free_space(argv[1], &ring);
 
